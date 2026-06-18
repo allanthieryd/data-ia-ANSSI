@@ -10,3 +10,4 @@ notebook
 jupyterlab
 nbconvert
 openpyxl
+python-dotenv
