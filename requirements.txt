@@ -1,0 +1,12 @@
+feedparser
+requests
+pandas
+numpy
+matplotlib
+seaborn
+plotly
+scikit-learn
+notebook
+jupyterlab
+nbconvert
+openpyxl
