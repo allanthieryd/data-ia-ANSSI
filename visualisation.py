@@ -1,18 +1,35 @@
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
 
-# --- Chargement des données ---
-df = pd.read_csv("data_anssi_consolidated.csv")
+# --- Dossier de sortie des visualisations ---
+IMAGES_DIR = "images"
+os.makedirs(IMAGES_DIR, exist_ok=True)
+
+# --- Chargement des données (CSV produit par main.py / consolidation.py) ---
+df = pd.read_csv(os.path.join("output", "data_consolidee.csv"))
+
+# Le pipeline modulaire utilise des noms de colonnes en minuscules ; on les
+# renomme vers les libellés attendus par les fonctions de visualisation.
+df = df.rename(columns={
+    "cvss": "CVSS", "epss": "EPSS", "date": "Date", "cve": "CVE",
+    "cwe": "CWE", "type": "Type", "editeur": "Éditeur",
+    "produit": "Produit", "base_severity": "Base Severity",
+})
 
 # Conversion des types
 df["CVSS"] = pd.to_numeric(df["CVSS"], errors="coerce")
 df["EPSS"] = pd.to_numeric(df["EPSS"], errors="coerce")
 df["Date"] = pd.to_datetime(df["Date"], errors="coerce", utc=True)
 
-# Filtrer les lignes sans CVE
-df_cve = df[df["CVE"] != ""].copy()
+# Les champs texte manquants (CWE, Éditeur, Produit) deviennent "" pour les filtres
+for col in ["CWE", "Éditeur", "Produit"]:
+    df[col] = df[col].fillna("")
+
+# Filtrer les lignes sans CVE (par sécurité ; chaque ligne a normalement un CVE)
+df_cve = df[df["CVE"].notna()].copy()
 
 print(f"Données chargées : {len(df_cve)} vulnérabilités")
 print(f"Score CVSS disponible : {df_cve['CVSS'].notna().sum()}")
@@ -30,13 +47,13 @@ def plot_cvss_histogram():
     ax.set_title("Distribution des scores CVSS")
     ax.legend()
     plt.tight_layout()
-    plt.savefig("viz_cvss_histogram.png", dpi=150)
+    plt.savefig(os.path.join(IMAGES_DIR, "viz_cvss_histogram.png"), dpi=150)
     plt.show()
 
 
 # --- 2. Diagramme circulaire des types CWE ---
 def plot_cwe_pie():
-    cwe_counts = df_cve[df_cve["CWE"] != "Non disponible"]["CWE"].value_counts().head(10)
+    cwe_counts = df_cve[df_cve["CWE"] != ""]["CWE"].value_counts().head(10)
     if cwe_counts.empty:
         print("Pas de données CWE disponibles.")
         return
@@ -44,7 +61,7 @@ def plot_cwe_pie():
     ax.pie(cwe_counts.values, labels=cwe_counts.index, autopct="%1.1f%%", startangle=140)
     ax.set_title("Top 10 des types de vulnérabilités (CWE)")
     plt.tight_layout()
-    plt.savefig("viz_cwe_pie.png", dpi=150)
+    plt.savefig(os.path.join(IMAGES_DIR, "viz_cwe_pie.png"), dpi=150)
     plt.show()
 
 
@@ -62,7 +79,7 @@ def plot_epss_curve():
     ax.set_title("Courbe des scores EPSS")
     ax.legend()
     plt.tight_layout()
-    plt.savefig("viz_epss_curve.png", dpi=150)
+    plt.savefig(os.path.join(IMAGES_DIR, "viz_epss_curve.png"), dpi=150)
     plt.show()
 
 
@@ -78,7 +95,7 @@ def plot_top_vendors():
     ax.set_ylabel("Éditeur")
     ax.set_title("Top 15 des éditeurs les plus affectés")
     plt.tight_layout()
-    plt.savefig("viz_top_vendors.png", dpi=150)
+    plt.savefig(os.path.join(IMAGES_DIR, "viz_top_vendors.png"), dpi=150)
     plt.show()
 
 
@@ -98,7 +115,7 @@ def plot_cvss_epss_heatmap():
     ax.set_xlabel("Score EPSS")
     ax.set_ylabel("Score CVSS")
     plt.tight_layout()
-    plt.savefig("viz_heatmap_cvss_epss.png", dpi=150)
+    plt.savefig(os.path.join(IMAGES_DIR, "viz_heatmap_cvss_epss.png"), dpi=150)
     plt.show()
 
 
@@ -117,7 +134,7 @@ def plot_cvss_epss_scatter():
     ax.axvline(x=9.0, color="orange", linestyle="--", alpha=0.7, label="CVSS critique")
     ax.legend()
     plt.tight_layout()
-    plt.savefig("viz_scatter_cvss_epss.png", dpi=150)
+    plt.savefig(os.path.join(IMAGES_DIR, "viz_scatter_cvss_epss.png"), dpi=150)
     plt.show()
 
 
@@ -135,7 +152,7 @@ def plot_cumulative_timeline():
     ax.set_title("Évolution temporelle des vulnérabilités détectées")
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig("viz_cumulative_timeline.png", dpi=150)
+    plt.savefig(os.path.join(IMAGES_DIR, "viz_cumulative_timeline.png"), dpi=150)
     plt.show()
 
 
@@ -154,7 +171,7 @@ def plot_cvss_boxplot_by_vendor():
     ax.set_title("Boxplot des scores CVSS par éditeur (Top 10)")
     ax.set_ylabel("Score CVSS")
     plt.tight_layout()
-    plt.savefig("viz_boxplot_cvss_vendor.png", dpi=150)
+    plt.savefig(os.path.join(IMAGES_DIR, "viz_boxplot_cvss_vendor.png"), dpi=150)
     plt.show()
 
 
@@ -175,7 +192,7 @@ def plot_vendor_by_type():
     ax.legend(title="Type")
     plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
-    plt.savefig("viz_vendor_by_type.png", dpi=150)
+    plt.savefig(os.path.join(IMAGES_DIR, "viz_vendor_by_type.png"), dpi=150)
     plt.show()
 
 
@@ -191,7 +208,7 @@ def plot_top_products():
     ax.set_ylabel("Produit")
     ax.set_title("Top 15 des produits les plus affectés")
     plt.tight_layout()
-    plt.savefig("viz_top_products.png", dpi=150)
+    plt.savefig(os.path.join(IMAGES_DIR, "viz_top_products.png"), dpi=150)
     plt.show()
 
 
@@ -212,4 +229,4 @@ if __name__ == "__main__":
     plot_vendor_by_type()
     plot_top_products()
 
-    print("\nToutes les visualisations ont été générées et sauvegardées.")
+    print(f"\nToutes les visualisations ont été générées et sauvegardées dans '{IMAGES_DIR}/'.")
