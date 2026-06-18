@@ -193,7 +193,7 @@ def build_dataframe(limit=10):
 
 # --- Exécution ---
 if __name__ == "__main__":
-    MAX_BULLETINS = 2 
+    MAX_BULLETINS = 4
     print(f"Récupération et consolidation des {MAX_BULLETINS} premiers bulletins ANSSI...")
     df = build_dataframe(limit=MAX_BULLETINS)
     print(f"\n{len(df)} lignes récupérées.")
