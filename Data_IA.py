@@ -131,7 +131,7 @@ def get_epss_score(cve_id):
 
 # --- Étape 4 : Consolidation ---
 
-def build_dataframe(limit=10):
+def build_dataframe(limit=60):
     """Construit le DataFrame consolidé.
     
     Args:
@@ -193,7 +193,7 @@ def build_dataframe(limit=10):
 
 # --- Exécution ---
 if __name__ == "__main__":
-    MAX_BULLETINS = 4
+    MAX_BULLETINS = 30
     print(f"Récupération et consolidation des {MAX_BULLETINS} premiers bulletins ANSSI...")
     df = build_dataframe(limit=MAX_BULLETINS)
     print(f"\n{len(df)} lignes récupérées.")
