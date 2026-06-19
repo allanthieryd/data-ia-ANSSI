@@ -11,7 +11,8 @@ consolide le tout dans un CSV exploitable, une série de visualisations et un
 ## Livrables
 
 1. **Code Python** : pipeline complet (extraction → enrichissement → consolidation
-   → alertes), documenté ci-dessous.
+   → alerte), plus les visualisations ([visualisation.py](visualisation.py)) et le
+   Machine Learning ([machine_learning.py](machine_learning.py)), documentés ci-dessous.
 2. **Données consolidées** : [output/data_consolidee.csv](output/data_consolidee.csv)
    (CVE issues des bulletins ANSSI enrichies par MITRE & FIRST).
 3. **Notebook d'analyse** : [notebooks/analyse_anssi.ipynb](notebooks/analyse_anssi.ipynb)
@@ -24,20 +25,21 @@ consolide le tout dans un CSV exploitable, une série de visualisations et un
 
 ```
 .
-├── main.py              # Point d'entrée : lance le pipeline complet
+├── main.py              # Point d'entrée : lance le pipeline (étapes 1→4 + alerte)
 ├── config.py            # Chemins (pathlib) et constantes partagées
-├── visualisation.py     # Étape 5 : génère 10 figures depuis le CSV
+├── visualisation.py     # Étape 5 : génère 10 figures (viz_*.png) depuis le CSV
+├── machine_learning.py  # Étape 6 : ML (Random Forest + KMeans), génère 9 ml_*.png
 ├── scripts/             # Package du pipeline
 │   ├── extraction.py    #   Étapes 1-2 : bulletins (RSS / local) + CVE
 │   ├── enrichissement.py#   Étape 3 : MITRE (CVSS, CWE) + FIRST (EPSS)
 │   ├── consolidation.py #   Étape 4 : DataFrame consolidé
-│   └── alerte.py        #   Étape 6 : envoi d'alerte email (SMTP)
+│   └── alerte.py        #   Alerte email (SMTP), déclenchée par main.py
 ├── notebooks/           # Livrable 3 : analyse & Machine Learning
 │   ├── analyse_anssi.ipynb   #   Notebook (exploration, viz, ML supervisé + non supervisé)
 │   └── analyse_anssi.html    #   Export HTML du notebook exécuté
 ├── data/                # Snapshots locaux (avis, alertes, mitre, first) — non versionné
 ├── output/              # CSV consolidé généré — non versionné
-├── images/              # Visualisations PNG générées — non versionné
+├── images/              # Figures PNG générées (10 viz_*.png + 9 ml_*.png) — non versionné
 ├── requirements.txt
 └── .env.example         # Modèle de configuration des secrets SMTP
 ```
@@ -76,10 +78,26 @@ Les années traitées se règlent via `YEARS` dans [config.py](config.py).
 python visualisation.py
 ```
 
-Produit 10 figures dans `images/` (distribution CVSS, top éditeurs/produits,
-heatmap CVSS×EPSS, évolution temporelle, etc.).
+Produit 10 figures `viz_*.png` dans `images/` (distribution CVSS, top
+éditeurs/produits, heatmap CVSS×EPSS, évolution temporelle, etc.).
 
-### 3. Notebook d'analyse & Machine Learning
+### 3. Générer les analyses de Machine Learning
+
+```bash
+python machine_learning.py
+```
+
+Entraîne un modèle **supervisé** (Random Forest : prédiction de la sévérité à
+partir de l'EPSS, du CWE, du type et de l'éditeur — le CVSS est volontairement
+exclu pour éviter la fuite de cible) et un modèle **non supervisé** (KMeans :
+profils de risque dans le plan CVSS × EPSS). Écrit 9 figures `ml_*.png` dans
+`images/` (coude / silhouette, projection PCA, matrice de confusion, courbes ROC,
+importance des variables, etc.) et affiche les métriques dans la console.
+
+> Comme le notebook, ce script lit `output/data_consolidee.csv` : lancez
+> `python main.py` au préalable.
+
+### 4. Notebook d'analyse & Machine Learning
 
 Le notebook [notebooks/analyse_anssi.ipynb](notebooks/analyse_anssi.ipynb)
 charge le CSV consolidé puis enchaîne : exploration du DataFrame, une quinzaine
@@ -87,7 +105,8 @@ de visualisations, un **modèle supervisé** (classification de la haute sévér
 CVSS ≥ 7 à partir de la description TF-IDF, du CWE et de l'EPSS) et un **modèle
 non supervisé** (segmentation KMeans des profils de risque dans le plan
 CVSS × EPSS), chacun **validé** (validation croisée, ROC-AUC, matrice de
-confusion / silhouette, Davies-Bouldin).
+confusion / silhouette, Davies-Bouldin). Le notebook embarque sa propre analyse
+ML, indépendante du script [machine_learning.py](machine_learning.py) ci-dessus.
 
 Ouvrir et exécuter le notebook :
 
@@ -110,7 +129,7 @@ jupyter nbconvert --to html notebooks/analyse_anssi.ipynb
 > Le notebook lit `output/data_consolidee.csv` : lancez `python main.py` au
 > préalable s'il n'existe pas encore.
 
-### 4. Envoyer une alerte email (optionnel)
+### 5. Envoyer une alerte email (optionnel)
 
 Copiez `.env.example` vers `.env` et renseignez vos identifiants SMTP Gmail
 (utilisez un [mot de passe d'application](https://myaccount.google.com/apppasswords)) :
