@@ -7,3 +7,9 @@ python-dotenv
 # Visualisation
 matplotlib
 seaborn
+
+# Notebook d'analyse & Machine Learning
+jupyter
+nbconvert
+scikit-learn
+plotly
