@@ -61,6 +61,11 @@ SEUILS_SEVERITE = (
     (0.0, "Faible"),
 )
 
+# --- Seuils de declenchement de l'alerte email (etape 6) ---
+# Une CVE est jugee critique si CVSS >= seuil OU EPSS >= seuil.
+SEUIL_CVSS_ALERTE = 9.0
+SEUIL_EPSS_ALERTE = 0.5
+
 # --- Colonnes finales du DataFrame consolide (ordre du sujet, etape 4) ---
 COLONNES = [
     "id_anssi", "titre_anssi", "type", "date", "cve",

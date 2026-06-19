@@ -15,6 +15,8 @@ from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
 
+import config
+
 load_dotenv()
 
 
@@ -68,6 +70,37 @@ def alerter_vulnerabilite(cve: str, produit: str, cvss: float | None,
         f"Action recommandée : appliquer le correctif dès que possible."
     )
     envoyer_email(destinataire, sujet, corps)
+
+
+def alerter_critiques(critiques: list[dict], destinataire: str | None = None) -> bool:
+    """Envoie UN mail recapitulatif listant les CVE critiques fournies.
+
+    critiques : liste de dicts {cve, produit, cvss, epss}. Si la liste est vide,
+    aucun mail n'est envoye. Retourne True si un mail a ete envoye.
+    """
+    if not critiques:
+        print("[INFO] Aucune CVE critique : pas d'alerte envoyee.")
+        return False
+
+    destinataire = destinataire or os.environ.get("EMAIL_RECIPIENT")
+    if not destinataire:
+        raise RuntimeError("Aucun destinataire (EMAIL_RECIPIENT absent du .env).")
+
+    lignes = [
+        f"- {c['cve']} | {c.get('produit') or 'N/A'} | "
+        f"CVSS {c['cvss'] if c.get('cvss') is not None else 'N/A'} | "
+        f"EPSS {c['epss'] if c.get('epss') is not None else 'N/A'}"
+        for c in critiques
+    ]
+    sujet = f"[ALERTE] {len(critiques)} vulnérabilité(s) critique(s) détectée(s)"
+    corps = (
+        f"Vulnérabilités dépassant les seuils critiques "
+        f"(CVSS ≥ {config.SEUIL_CVSS_ALERTE} ou EPSS ≥ {config.SEUIL_EPSS_ALERTE}) :\n\n"
+        + "\n".join(lignes)
+        + "\n\nAction recommandée : appliquer les correctifs dès que possible."
+    )
+    envoyer_email(destinataire, sujet, corps)
+    return True
 
 
 if __name__ == "__main__":
