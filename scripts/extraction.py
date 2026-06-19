@@ -6,36 +6,32 @@ Approche conforme au sujet :
 
 Pour l'enrichissement (etape 3), les reponses JSON sont disponibles en local
 (dossiers data/mitre et data/first) afin de menager les serveurs externes.
+
+Execution directe : ``python -m scripts.extraction``
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 import time
+from pathlib import Path
 
 import feedparser
 import requests
 
-# Flux RSS officiels du CERT-FR (on ne garde que avis et alertes, cf. sujet)
-FLUX_RSS = {
-    "Avis": "https://www.cert.ssi.gouv.fr/avis/feed/",
-    "Alerte": "https://www.cert.ssi.gouv.fr/alerte/feed/",
-}
-
-# Delai entre deux requetes externes (section 8 du sujet : usage responsable)
-DELAI_REQUETE = 2.0
+import config
 
 # Regex d'identifiant CVE (filet de securite si la cle "cves" est absente)
 MOTIF_CVE = re.compile(r"CVE-\d{4}-\d{4,7}")
 
 
-def extraire_bulletins_rss(flux: dict[str, str] = FLUX_RSS) -> list[dict]:
+def extraire_bulletins_rss(flux: dict[str, str] | None = None) -> list[dict]:
     """Parcourt les flux RSS et renvoie la liste des bulletins reperes.
 
     Chaque bulletin est un dict : id, type (Avis/Alerte), titre, date, lien.
     """
+    flux = flux or config.FLUX_RSS
     bulletins: list[dict] = []
     for type_bulletin, url in flux.items():
         feed = feedparser.parse(url)
@@ -62,13 +58,6 @@ def _id_depuis_lien(lien: str) -> str:
     return found.group(0) if found else lien
 
 
-# Dossiers locaux des bulletins (copies fournies par le prof) et URL de base
-SOURCES_LOCALES = {
-    "Avis": ("data/Avis", "https://www.cert.ssi.gouv.fr/avis/"),
-    "Alerte": ("data/alertes", "https://www.cert.ssi.gouv.fr/alerte/"),
-}
-
-
 def lister_bulletins_locaux(annees: tuple[int, ...] | None = None) -> list[dict]:
     """Liste les bulletins depuis le snapshot local (data/Avis, data/alertes).
 
@@ -77,16 +66,18 @@ def lister_bulletins_locaux(annees: tuple[int, ...] | None = None) -> list[dict]
     date, lien. La date est la date de premiere publication (revision initiale).
     """
     bulletins: list[dict] = []
-    for type_bulletin, (dossier, url_base) in SOURCES_LOCALES.items():
-        if not os.path.isdir(dossier):
+    for type_bulletin, (dossier, url_base) in config.SOURCES_BULLETINS.items():
+        dossier = Path(dossier)
+        if not dossier.is_dir():
             print(f"[ATTENTION] Dossier local absent : {dossier}")
             continue
-        for nom in os.listdir(dossier):
+        for chemin in dossier.iterdir():
+            nom = chemin.name
             annee = _annee_depuis_id(nom)
             if annees and annee not in annees:
                 continue
             try:
-                with open(os.path.join(dossier, nom), encoding="utf-8") as f:
+                with open(chemin, encoding="utf-8") as f:
                     data = json.load(f)
             except (json.JSONDecodeError, OSError) as e:
                 print(f"[ATTENTION] Bulletin local illisible ({nom}) : {e}")
@@ -111,7 +102,7 @@ def _annee_depuis_id(id_bulletin: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def charger_json_bulletin(bulletin: dict, dossier_local: str | None = None) -> dict | None:
+def charger_json_bulletin(bulletin: dict, dossier_local: str | Path | None = None) -> dict | None:
     """Charge le JSON detaille d'un bulletin.
 
     - Si dossier_local est fourni (ex: data/avis), on lit le fichier local.
@@ -119,7 +110,7 @@ def charger_json_bulletin(bulletin: dict, dossier_local: str | None = None) -> d
     Gere les exceptions et renvoie None en cas d'echec.
     """
     if dossier_local:
-        chemin = os.path.join(dossier_local, bulletin["id"])
+        chemin = Path(dossier_local) / bulletin["id"]
         try:
             with open(chemin, encoding="utf-8") as f:
                 return json.load(f)
@@ -130,8 +121,8 @@ def charger_json_bulletin(bulletin: dict, dossier_local: str | None = None) -> d
 
     # Recuperation en ligne (fallback ou mode 100% en ligne)
     try:
-        time.sleep(DELAI_REQUETE)
-        reponse = requests.get(bulletin["lien"] + "json/", timeout=10)
+        time.sleep(config.DELAI_REQUETE)
+        reponse = requests.get(bulletin["lien"] + "json/", timeout=config.TIMEOUT_REQUETE)
         reponse.raise_for_status()
         return reponse.json()
     except (requests.RequestException, ValueError) as e:

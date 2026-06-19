@@ -1,10 +1,23 @@
+# Environnements / dépendances
 .venv
-.ipynb_checkpoints
+venv/
+
+# Secrets
 .env
-data
+
+# Caches Python
 __pycache__/
 *.pyc
-pipeline.log
-images
+
+# Jupyter
+.ipynb_checkpoints
+
+# Données & sorties générées
+data
 output
+images
+pipeline.log
 *.pdf
+
+# OS
+.DS_Store

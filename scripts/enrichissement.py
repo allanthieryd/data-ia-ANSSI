@@ -1,48 +1,44 @@
 """Etape 3 : Enrichissement des CVE via les API MITRE (CVE) et FIRST (EPSS).
 
 Les reponses sont lues en local (data/mitre, data/first) pour menager les
-serveurs externes ; un repli en ligne est prevu si le fichier local manque.
+serveurs externes ; un repli en ligne est prevu si le fichier local manque
+(active via config.REPLI_EN_LIGNE).
 
 On extrait pour chaque CVE :
   - description, score CVSS, severite, type CWE (+ description)  -> MITRE
   - produits affectes (editeur / produit / versions)            -> MITRE
   - score EPSS (probabilite d'exploitation)                     -> FIRST
+
+Execution directe : ``python -m scripts.enrichissement``
 """
 
 from __future__ import annotations
 
 import json
-import os
 import time
+from pathlib import Path
 
 import requests
 
-DELAI_REQUETE = 2.0
-
-# Si True, on tente un telechargement en ligne quand le fichier local manque.
-# Desactive par defaut : pipeline 100% local, rapide et reproductible.
-REPLI_EN_LIGNE = False
-
-# Cles CVSS possibles, par ordre de preference (le sujet previent qu'elles varient)
-CLES_CVSS = ("cvssV4_0", "cvssV3_1", "cvssV3_0", "cvssV2_0")
+import config
 
 
-def _charger_json_local_ou_ligne(cve: str, dossier: str | None, url: str) -> dict | None:
+def _charger_json_local_ou_ligne(cve: str, dossier: str | Path | None, url: str) -> dict | None:
     """Lit le JSON local data/<dossier>/<cve>, sinon (option) telecharge en ligne."""
     if dossier:
-        chemin = os.path.join(dossier, cve)
+        chemin = Path(dossier) / cve
         try:
             with open(chemin, encoding="utf-8") as f:
                 return json.load(f)
         except FileNotFoundError:
-            if not REPLI_EN_LIGNE:
+            if not config.REPLI_EN_LIGNE:
                 return None  # mode local strict : pas de requete reseau
         except (json.JSONDecodeError, OSError) as e:
             print(f"[ATTENTION] Lecture locale impossible ({cve}) : {e}")
             return None
     try:
-        time.sleep(DELAI_REQUETE)
-        rep = requests.get(url, timeout=10)
+        time.sleep(config.DELAI_REQUETE)
+        rep = requests.get(url, timeout=config.TIMEOUT_REQUETE)
         rep.raise_for_status()
         return rep.json()
     except (requests.RequestException, ValueError) as e:
@@ -54,17 +50,15 @@ def severite_depuis_cvss(score: float | None) -> str:
     """Traduit un score CVSS en categorie de gravite (bareme du sujet)."""
     if score is None:
         return "Inconnue"
-    if score >= 9:
-        return "Critique"
-    if score >= 7:
-        return "Elevee"
-    if score >= 4:
-        return "Moyenne"
-    return "Faible"
+    for seuil, libelle in config.SEUILS_SEVERITE:
+        if score >= seuil:
+            return libelle
+    return "Inconnue"
 
 
-def enrichir_mitre(cve: str, dossier_mitre: str | None = "data/mitre") -> dict:
+def enrichir_mitre(cve: str, dossier_mitre: str | Path | None = None) -> dict:
     """Renvoie description, CVSS, CWE et produits affectes pour un CVE."""
+    dossier_mitre = config.DOSSIER_MITRE if dossier_mitre is None else dossier_mitre
     base = {
         "description": None,
         "cvss": None,
@@ -79,28 +73,25 @@ def enrichir_mitre(cve: str, dossier_mitre: str | None = "data/mitre") -> dict:
 
     cna = data.get("containers", {}).get("cna", {})
 
-    # Description
     descriptions = cna.get("descriptions", [])
     if descriptions:
         base["description"] = descriptions[0].get("value")
 
-    # Score CVSS : on cherche la premiere cle disponible parmi les variantes
+    # Le score CVSS peut etre sous plusieurs cles selon la version de la metrique.
     for metric in cna.get("metrics", []):
-        for cle in CLES_CVSS:
+        for cle in config.CLES_CVSS:
             if cle in metric and "baseScore" in metric[cle]:
                 base["cvss"] = metric[cle]["baseScore"]
                 break
         if base["cvss"] is not None:
             break
 
-    # Type CWE
     problemtypes = cna.get("problemTypes", [])
     if problemtypes and problemtypes[0].get("descriptions"):
         desc0 = problemtypes[0]["descriptions"][0]
         base["cwe"] = desc0.get("cweId")
         base["cwe_desc"] = desc0.get("description")
 
-    # Produits affectes
     for produit in cna.get("affected", []):
         versions = [
             v.get("version")
@@ -117,8 +108,9 @@ def enrichir_mitre(cve: str, dossier_mitre: str | None = "data/mitre") -> dict:
     return base
 
 
-def enrichir_epss(cve: str, dossier_first: str | None = "data/first") -> float | None:
+def enrichir_epss(cve: str, dossier_first: str | Path | None = None) -> float | None:
     """Renvoie le score EPSS (probabilite d'exploitation) d'un CVE."""
+    dossier_first = config.DOSSIER_FIRST if dossier_first is None else dossier_first
     url = f"https://api.first.org/data/v1/epss?cve={cve}"
     data = _charger_json_local_ou_ligne(cve, dossier_first, url)
     if not data:
