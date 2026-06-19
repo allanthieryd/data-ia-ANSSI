@@ -1,13 +1,9 @@
+# Pipeline (extraction, enrichissement, consolidation)
 feedparser
 requests
 pandas
-numpy
+python-dotenv
+
+# Visualisation
 matplotlib
 seaborn
-plotly
-scikit-learn
-notebook
-jupyterlab
-nbconvert
-openpyxl
-python-dotenv

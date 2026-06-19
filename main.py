@@ -2,35 +2,28 @@
 
 Usage :
     python main.py
-Produit le fichier data_consolidee.csv a la racine du projet.
+Produit le fichier output/data_consolidee.csv.
 """
 
-import sys
-import os
+from __future__ import annotations
 
-# Permet d'importer les modules du dossier scripts/
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "scripts"))
-
-from extraction import lister_bulletins_locaux
-from consolidation import consolider
-
-DOSSIER_SORTIE = "output"
-FICHIER_SORTIE = os.path.join(DOSSIER_SORTIE, "data_consolidee.csv")
-ANNEES = (2024, 2025, 2026)  # filtre sur les bulletins recents
+import config
+from scripts.extraction import lister_bulletins_locaux
+from scripts.consolidation import consolider
 
 
 def main() -> None:
-    os.makedirs(DOSSIER_SORTIE, exist_ok=True)
+    config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    print(f"== Etape 1 : recensement des bulletins locaux (annees {ANNEES}) ==")
-    bulletins = lister_bulletins_locaux(annees=ANNEES)
+    print(f"== Etape 1 : recensement des bulletins locaux (annees {config.ANNEES}) ==")
+    bulletins = lister_bulletins_locaux(annees=config.ANNEES)
     print(f"  -> {len(bulletins)} bulletins reperes\n")
 
     print("== Etapes 2-4 : extraction CVE, enrichissement, consolidation ==")
     df = consolider(bulletins)
 
-    df.to_csv(FICHIER_SORTIE, index=False, encoding="utf-8-sig")
-    print(f"\n== Termine : {len(df)} lignes ecrites dans {FICHIER_SORTIE} ==")
+    df.to_csv(config.FICHIER_SORTIE, index=False, encoding="utf-8-sig")
+    print(f"\n== Termine : {len(df)} lignes ecrites dans {config.FICHIER_SORTIE} ==")
     print(f"   {df['cve'].nunique()} CVE uniques, "
           f"{df['id_anssi'].nunique()} bulletins.")
 

@@ -3,28 +3,17 @@
 Granularite : une ligne par couple (bulletin, CVE), conformement au sujet
 ("une alerte/avis peut se trouver repete sur plusieurs lignes selon le nombre
 de CVE"). Les produits affectes (souvent multiples) sont agreges en chaines.
+
+Execution directe : ``python -m scripts.consolidation``
 """
 
 from __future__ import annotations
 
 import pandas as pd
 
-from extraction import charger_json_bulletin, extraire_cve
-from enrichissement import enrichir_cve
-
-# Dossiers locaux des JSON de bulletins, par type (copies fournies par le prof).
-# Si un fichier manque, charger_json_bulletin bascule automatiquement en ligne.
-DOSSIERS_BULLETINS = {
-    "Avis": "data/Avis",
-    "Alerte": "data/alertes",
-}
-
-# Colonnes finales du DataFrame (ordre du sujet, etape 4)
-COLONNES = [
-    "id_anssi", "titre_anssi", "type", "date", "cve",
-    "cvss", "base_severity", "cwe", "cwe_desc", "epss",
-    "lien", "description", "editeur", "produit", "versions",
-]
+import config
+from scripts.extraction import charger_json_bulletin, extraire_cve
+from scripts.enrichissement import enrichir_cve
 
 
 def _produits_en_chaines(produits: list[dict]) -> tuple[str, str, str]:
@@ -36,7 +25,7 @@ def _produits_en_chaines(produits: list[dict]) -> tuple[str, str, str]:
         if p.get("produit"):
             noms.append(str(p["produit"]).strip())
         versions.extend(p.get("versions", []))
-    # set ordonne pour dedupliquer sans perdre la lisibilite
+    # dict.fromkeys deduplique en conservant l'ordre (lisibilite)
     uniq = lambda xs: " | ".join(dict.fromkeys(xs))
     return uniq(editeurs), uniq(noms), uniq(versions)
 
@@ -51,7 +40,7 @@ def consolider(bulletins: list[dict]) -> pd.DataFrame:
     lignes: list[dict] = []
 
     for i, b in enumerate(bulletins, 1):
-        dossier = DOSSIERS_BULLETINS.get(b["type"])
+        dossier, _ = config.SOURCES_BULLETINS.get(b["type"], (None, None))
         data = charger_json_bulletin(b, dossier_local=dossier)
         if not data:
             continue
@@ -83,7 +72,16 @@ def consolider(bulletins: list[dict]) -> pd.DataFrame:
                 }
             )
 
-    df = pd.DataFrame(lignes, columns=COLONNES)
+    df = pd.DataFrame(lignes, columns=config.COLONNES)
     # Normalisation de la date en datetime (utile pour les analyses temporelles)
     df["date"] = pd.to_datetime(df["date"], errors="coerce", utc=True)
     return df
+
+
+if __name__ == "__main__":
+    from scripts.extraction import lister_bulletins_locaux
+
+    bulletins = lister_bulletins_locaux(annees=config.ANNEES)[:5]
+    print(f"Test sur {len(bulletins)} bulletins locaux.")
+    df = consolider(bulletins)
+    print(df.head())
