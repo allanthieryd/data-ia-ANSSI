@@ -49,17 +49,17 @@ def load_and_prepare_data():
     Lit output/data_consolidee.csv (produit par main.py) et renomme les colonnes
     minuscules du pipeline vers les libellés attendus par les modèles.
     """
-    if not config.FICHIER_SORTIE.exists():
+    if not config.OUTPUT_FILE.exists():
         raise FileNotFoundError(
-            f"Fichier introuvable : {config.FICHIER_SORTIE}\n"
+            f"Fichier introuvable : {config.OUTPUT_FILE}\n"
             "Lancez d'abord le pipeline avec `python main.py`."
         )
 
-    df = pd.read_csv(config.FICHIER_SORTIE)
+    df = pd.read_csv(config.OUTPUT_FILE)
     df = df.rename(columns={
         "cvss": "CVSS", "epss": "EPSS", "date": "Date", "cve": "CVE",
-        "cwe": "CWE", "type": "Type", "editeur": "Éditeur",
-        "produit": "Produit", "base_severity": "Base Severity",
+        "cwe": "CWE", "type": "Type", "vendor": "Éditeur",
+        "product": "Produit", "base_severity": "Base Severity",
     })
     df["CVSS"] = pd.to_numeric(df["CVSS"], errors="coerce")
     df["EPSS"] = pd.to_numeric(df["EPSS"], errors="coerce")
@@ -225,7 +225,7 @@ def supervised_classification(df_ml):
 
     if len(df_sup) < 10:
         print("⚠️  Pas assez de données avec Base Severity pour entraîner un modèle supervisé.")
-        print("   Élargissez le filtre d'années (config.ANNEES) puis relancez `python main.py`.")
+        print("   Élargissez le filtre d'années (config.YEARS) puis relancez `python main.py`.")
         return
 
     # Encodage de la cible
@@ -237,7 +237,7 @@ def supervised_classification(df_ml):
 
     # --- Préparation des features ---
     # IMPORTANT : on EXCLUT volontairement CVSS des features.
-    # Base Severity est derivee deterministiquement de CVSS (cf. config.SEUILS_SEVERITE),
+    # Base Severity est derivee deterministiquement de CVSS (cf. config.SEVERITY_THRESHOLDS),
     # donc l'inclure provoquerait une fuite de cible (accuracy artificielle de 100%).
     # On predit la criticite a partir des AUTRES signaux (EPSS, CWE, type, editeur),
     # ce qui correspond a l'objectif : estimer la criticite quand CVSS n'est pas dispo.
@@ -418,7 +418,7 @@ if __name__ == "__main__":
 
     if len(df_ml) < 5:
         print("\n⚠️  Pas assez de données pour le ML.")
-        print("   Élargissez config.ANNEES et relancez `python main.py`.")
+        print("   Élargissez config.YEARS et relancez `python main.py`.")
     else:
         # Modèle non supervisé
         df_ml = clustering_analysis(df_ml)

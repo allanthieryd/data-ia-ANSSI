@@ -44,7 +44,7 @@ consolide le tout dans un CSV exploitable, une série de visualisations et un
 
 Le pipeline fonctionne **100 % en local** par défaut (lecture des snapshots du
 dossier `data/`). Un repli en ligne sur les API est possible en activant
-`REPLI_EN_LIGNE` dans [config.py](config.py).
+`ONLINE_FALLBACK` dans [config.py](config.py).
 
 ## Prérequis
 
@@ -68,7 +68,7 @@ python main.py
 ```
 
 Produit `output/data_consolidee.csv` (une ligne par couple bulletin × CVE).
-Les années traitées se règlent via `ANNEES` dans [config.py](config.py).
+Les années traitées se règlent via `YEARS` dans [config.py](config.py).
 
 ### 2. Générer les visualisations
 

@@ -29,17 +29,17 @@ def charger_donnees() -> pd.DataFrame:
     Renvoie un DataFrame avec colonnes renommees (libelles lisibles), types
     numeriques/date convertis et champs texte normalises.
     """
-    if not config.FICHIER_SORTIE.exists():
+    if not config.OUTPUT_FILE.exists():
         raise FileNotFoundError(
-            f"Fichier introuvable : {config.FICHIER_SORTIE}\n"
+            f"Fichier introuvable : {config.OUTPUT_FILE}\n"
             "Lancez d'abord le pipeline avec `python main.py`."
         )
 
-    df = pd.read_csv(config.FICHIER_SORTIE)
+    df = pd.read_csv(config.OUTPUT_FILE)
     df = df.rename(columns={
         "cvss": "CVSS", "epss": "EPSS", "date": "Date", "cve": "CVE",
-        "cwe": "CWE", "type": "Type", "editeur": "Éditeur",
-        "produit": "Produit", "base_severity": "Base Severity",
+        "cwe": "CWE", "type": "Type", "vendor": "Éditeur",
+        "product": "Produit", "base_severity": "Base Severity",
     })
 
     df["CVSS"] = pd.to_numeric(df["CVSS"], errors="coerce")

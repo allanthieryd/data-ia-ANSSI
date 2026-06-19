@@ -12,50 +12,50 @@ from __future__ import annotations
 import pandas as pd
 
 import config
-from scripts.extraction import charger_json_bulletin, extraire_cve
-from scripts.enrichissement import enrichir_cve
+from scripts.extraction import load_bulletin_json, extract_cves
+from scripts.enrichissement import enrich_cve
 
 
-def _produits_en_chaines(produits: list[dict]) -> tuple[str, str, str]:
+def _products_to_strings(products: list[dict]) -> tuple[str, str, str]:
     """Agrege la liste de produits en 3 chaines : editeurs, produits, versions."""
-    editeurs, noms, versions = [], [], []
-    for p in produits:
-        if p.get("editeur"):
-            editeurs.append(str(p["editeur"]).strip())
-        if p.get("produit"):
-            noms.append(str(p["produit"]).strip())
+    vendors, names, versions = [], [], []
+    for p in products:
+        if p.get("vendor"):
+            vendors.append(str(p["vendor"]).strip())
+        if p.get("product"):
+            names.append(str(p["product"]).strip())
         versions.extend(p.get("versions", []))
     # dict.fromkeys deduplique en conservant l'ordre (lisibilite)
     uniq = lambda xs: " | ".join(dict.fromkeys(xs))
-    return uniq(editeurs), uniq(noms), uniq(versions)
+    return uniq(vendors), uniq(names), uniq(versions)
 
 
-def consolider(bulletins: list[dict]) -> pd.DataFrame:
+def consolidate(bulletins: list[dict]) -> pd.DataFrame:
     """Construit le DataFrame consolide a partir de la liste de bulletins.
 
     Met en cache l'enrichissement par CVE (un meme CVE peut apparaitre dans
     plusieurs bulletins) pour eviter des lectures/requetes redondantes.
     """
-    cache_cve: dict[str, dict] = {}
-    lignes: list[dict] = []
+    cve_cache: dict[str, dict] = {}
+    rows: list[dict] = []
 
     for i, b in enumerate(bulletins, 1):
-        dossier, _ = config.SOURCES_BULLETINS.get(b["type"], (None, None))
-        data = charger_json_bulletin(b, dossier_local=dossier)
+        directory, _ = config.BULLETIN_SOURCES.get(b["type"], (None, None))
+        data = load_bulletin_json(b, local_dir=directory)
         if not data:
             continue
-        cves = extraire_cve(data)
+        cves = extract_cves(data)
         print(f"[{i}/{len(bulletins)}] {b['id']} ({b['type']}) : {len(cves)} CVE")
 
         for cve in cves:
-            if cve not in cache_cve:
-                cache_cve[cve] = enrichir_cve(cve)
-            info = cache_cve[cve]
-            editeurs, noms, versions = _produits_en_chaines(info["produits"])
-            lignes.append(
+            if cve not in cve_cache:
+                cve_cache[cve] = enrich_cve(cve)
+            info = cve_cache[cve]
+            vendors, names, versions = _products_to_strings(info["products"])
+            rows.append(
                 {
                     "id_anssi": b["id"],
-                    "titre_anssi": b["titre"],
+                    "title_anssi": b["title"],
                     "type": b["type"],
                     "date": b["date"],
                     "cve": cve,
@@ -64,24 +64,24 @@ def consolider(bulletins: list[dict]) -> pd.DataFrame:
                     "cwe": info["cwe"],
                     "cwe_desc": info["cwe_desc"],
                     "epss": info["epss"],
-                    "lien": b["lien"],
+                    "link": b["link"],
                     "description": info["description"],
-                    "editeur": editeurs,
-                    "produit": noms,
+                    "vendor": vendors,
+                    "product": names,
                     "versions": versions,
                 }
             )
 
-    df = pd.DataFrame(lignes, columns=config.COLONNES)
+    df = pd.DataFrame(rows, columns=config.COLUMNS)
     # Normalisation de la date en datetime (utile pour les analyses temporelles)
     df["date"] = pd.to_datetime(df["date"], errors="coerce", utc=True)
     return df
 
 
 if __name__ == "__main__":
-    from scripts.extraction import lister_bulletins_locaux
+    from scripts.extraction import list_local_bulletins
 
-    bulletins = lister_bulletins_locaux(annees=config.ANNEES)[:5]
+    bulletins = list_local_bulletins(years=config.YEARS)[:5]
     print(f"Test sur {len(bulletins)} bulletins locaux.")
-    df = consolider(bulletins)
+    df = consolidate(bulletins)
     print(df.head())
